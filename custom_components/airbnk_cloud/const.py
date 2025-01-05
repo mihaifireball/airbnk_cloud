@@ -15,3 +15,5 @@ AIRBNK_DEVICES = "airbnk_devices"
 AIRBNK_DISCOVERY_NEW = "airbnk_discovery_new_{}"
 
 TIMEOUT = 60
+LOCK_STATE_LOCKED = "Closed"
+LOCK_STATE_UNLOCKED = "Open"

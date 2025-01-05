@@ -5,8 +5,8 @@ import logging
 import voluptuous as vol
 
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
-from homeassistant.helpers.typing import HomeAssistantType
-
+from homeassistant.core import HomeAssistant
+from homeassistant.const import SERVICE_RELOAD
 from .const import DOMAIN, AIRBNK_API, AIRBNK_DEVICES
 
 from .airbnk_api import AirbnkApi
@@ -27,14 +27,34 @@ TOKENSET_FILE = "tokenset.json"
 
 MIN_TIME_BETWEEN_UPDATES = datetime.timedelta(seconds=15)
 
-COMPONENT_TYPES = ["cover", "sensor"]
+COMPONENT_TYPES = ["lock", "sensor"]
 
 
 CONFIG_SCHEMA = vol.Schema(vol.All({DOMAIN: vol.Schema({})}), extra=vol.ALLOW_EXTRA)
 
 
 async def async_setup(hass, config):
-    """Setup the Airbnk Residential component."""
+    """Setup the Airbnk component."""
+
+    async def _handle_reload(service):
+        """Handle reload service call."""
+        _LOGGER.debug("Service %s.reload called: reloading integration", DOMAIN)
+
+        current_entries = hass.config_entries.async_entries(DOMAIN)
+
+        reload_tasks = [
+            hass.config_entries.async_reload(entry.entry_id)
+            for entry in current_entries
+        ]
+
+        await asyncio.gather(*reload_tasks)
+        _LOGGER.debug("RELOAD DONE")
+
+    hass.helpers.service.async_register_admin_service(
+        DOMAIN,
+        SERVICE_RELOAD,
+        _handle_reload,
+    )
 
     if DOMAIN not in config:
         return True
@@ -50,20 +70,17 @@ async def async_setup(hass, config):
     return True
 
 
-async def async_setup_entry(hass: HomeAssistantType, entry: ConfigEntry):
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Establish connection with Airbnk."""
 
     airbnk_api = AirbnkApi(hass, entry)
 
     devices = await airbnk_api.getCloudDevices()
     hass.data[DOMAIN] = {AIRBNK_API: airbnk_api, AIRBNK_DEVICES: devices}
-
-    for component in COMPONENT_TYPES:
-        hass.async_create_task(
-            hass.config_entries.async_forward_entry_setup(entry, component)
-        )
+    
+    await hass.config_entries.async_forward_entry_setups(entry, COMPONENT_TYPES)
     return True
-
+    
 
 async def async_unload_entry(hass, config_entry):
     """Unload a config entry."""
